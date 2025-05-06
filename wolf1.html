@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wolfenstein 3D Clone</title>
+  <!-- Include p5.js library from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+</head>
+<body>
+<script>
+// Global variables
+let playerX = 1.5; // Starting in Room 1
+let playerY = 1.5;
+let playerAngle = 0;
+let moveSpeed = 0.1;
+let rotSpeed = 0.05;
+let screenWidth = 1024;
+let screenHeight = 480;
+let fov = Math.PI / 2;
+let wallTexture, ceilingTexture, floorTexture;
+
+// Larger 20x20 map with multiple rooms (1 = wall, 0 = empty)
+let map = [
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // Room 1
+  [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // Room 2
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+  [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1], // Room 3
+  [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // Room 4
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  [1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1], // Room 5
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+];
+let mapWidth = map[0].length;
+let mapHeight = map.length;
+
+function preload() {
+  console.log("Starting preload...");
+  wallTexture = loadImage('assets/wall1.png', 
+    () => console.log("Wall texture loaded: ", wallTexture.width, "x", wallTexture.height),
+    () => console.error("Failed to load wall texture")
+  );
+  ceilingTexture = loadImage('assets/ceiling1.png', 
+    () => console.log("Ceiling texture loaded: ", ceilingTexture.width, "x", ceilingTexture.height),
+    () => console.error("Failed to load ceiling texture")
+  );
+  floorTexture = loadImage('assets/floor1.png', 
+    () => console.log("Floor texture loaded: ", floorTexture.width, "x", floorTexture.height),
+    () => console.error("Failed to load floor texture")
+  );
+}
+
+function setup() {
+  createCanvas(screenWidth, screenHeight);
+  noStroke();
+  console.log("Setup complete");
+}
+
+function draw() {
+  background(0);
+  handleMovement();
+  render3DView();
+  render2DMap();
+}
+
+function handleMovement() {
+  if (keyIsDown(UP_ARROW)) {
+    let newX = playerX + cos(playerAngle) * moveSpeed;
+    let newY = playerY + sin(playerAngle) * moveSpeed;
+    if (map[Math.floor(newY)][Math.floor(newX)] === 0) {
+      playerX = newX;
+      playerY = newY;
+    }
+  }
+  if (keyIsDown(DOWN_ARROW)) {
+    let newX = playerX - cos(playerAngle) * moveSpeed;
+    let newY = playerY - sin(playerAngle) * moveSpeed;
+    if (map[Math.floor(newY)][Math.floor(newX)] === 0) {
+      playerX = newX;
+      playerY = newY;
+    }
+  }
+  if (keyIsDown(LEFT_ARROW)) {
+    playerAngle -= rotSpeed;
+  }
+  if (keyIsDown(RIGHT_ARROW)) {
+    playerAngle += rotSpeed;
+  }
+  let mouseDelta = movedX / screenWidth;
+  playerAngle += mouseDelta * rotSpeed * 10;
+}
+
+function render3DView() {
+  let rays = screenWidth / 2;
+  let rayAngleStep = fov / rays;
+  
+  for (let i = 0; i < rays; i++) {
+    let rayAngle = playerAngle - fov / 2 + rayAngleStep * i;
+    let hitResult = castRay(rayAngle);
+    let distance = hitResult.distance;
+    let textureX = hitResult.textureX;
+    
+    distance *= cos(rayAngle - playerAngle); // Fish-eye correction
+    
+    let wallHeight = (screenHeight / distance) * 2;
+    let wallTop = screenHeight / 2 - wallHeight / 2;
+    let wallBottom = screenHeight / 2 + wallHeight / 2;
+    
+    // Draw ceiling with texture
+    if (ceilingTexture && ceilingTexture.width > 0) {
+      for (let y = 0; y < wallTop; y++) {
+        let depth = (screenHeight / 2 - y) / (screenHeight / 2);
+        let texX = (playerX + cos(rayAngle) * depth) % 1 * ceilingTexture.width;
+        let texY = (playerY + sin(rayAngle) * depth) % 1 * ceilingTexture.height;
+        image(ceilingTexture, i * 2, y, 2, 1, texX, texY, 1, 1);
+      }
+    } else {
+      fill(50);
+      rect(i * 2, 0, 2, wallTop);
+    }
+    
+    // Draw wall with texture
+    if (wallTexture && wallTexture.width > 0) {
+      let texX = Math.floor(textureX * wallTexture.width);
+      image(wallTexture, i * 2, wallTop, 2, wallHeight, texX, 0, 1, wallTexture.height);
+    } else {
+      fill(100);
+      rect(i * 2, wallTop, 2, wallHeight);
+    }
+    
+    // Draw floor with texture
+    if (floorTexture && floorTexture.width > 0) {
+      for (let y = wallBottom; y < screenHeight; y++) {
+        let depth = (y - screenHeight / 2) / (screenHeight / 2);
+        let texX = (playerX + cos(rayAngle) * depth) % 1 * floorTexture.width;
+        let texY = (playerY + sin(rayAngle) * depth) % 1 * floorTexture.height;
+        image(floorTexture, i * 2, y, 2, 1, texX, texY, 1, 1);
+      }
+    } else {
+      fill(150);
+      rect(i * 2, wallBottom, 2, screenHeight - wallBottom);
+    }
+  }
+}
+
+function castRay(angle) {
+  let rayX = playerX;
+  let rayY = playerY;
+  let deltaX = cos(angle);
+  let deltaY = sin(angle);
+  
+  while (true) {
+    rayX += deltaX * 0.05;
+    rayY += deltaY * 0.05;
+    let mapX = Math.floor(rayX);
+    let mapY = Math.floor(rayY);
+    
+    if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) break;
+    if (map[mapY][mapX] === 1) {
+      let distToWall = dist(playerX, playerY, rayX, rayY);
+      let textureX = rayX - Math.floor(rayX);
+      if (deltaX < 0) textureX = 1 - textureX;
+      return { distance: distToWall, textureX: textureX };
+    }
+  }
+  return { distance: 10, textureX: 0 };
+}
+
+function render2DMap() {
+  let tileSize = screenHeight*.5 / mapHeight*.5; // Adjusted for 20x20 map
+  push();
+  translate(screenWidth / 2, 0);
+  
+  for (let y = 0; y < mapHeight; y++) {
+    for (let x = 0; x < mapWidth; x++) {
+      if (map[y][x] === 1) {
+        fill(100);
+        rect(x * tileSize, y * tileSize, tileSize, tileSize);
+      } else {
+        fill(200);
+        rect(x * tileSize, y * tileSize, tileSize, tileSize);
+      }
+    }
+  }
+  
+  fill(255, 0, 0);
+  ellipse(playerX * tileSize, playerY * tileSize, 10);
+  stroke(255, 0, 0);
+  line(playerX * tileSize, playerY * tileSize, 
+       playerX * tileSize + cos(playerAngle) * 20, 
+       playerY * tileSize + sin(playerAngle) * 20);
+  pop();
+}
+</script>
+</body>
+</html>
