@@ -15,9 +15,12 @@
       align-items: center;
       min-height: 100vh;
       background: #000;
+      overflow: hidden; /* Prevent page scrolling */
+      touch-action: none; /* Disable touch scrolling and gestures */
     }
     canvas {
       display: block;
+      touch-action: none; /* Ensure canvas doesn't trigger touch actions */
     }
   </style>
 </head>
@@ -80,6 +83,11 @@
       textSize(24 * scaleFactor);
       ground = new Ground();
       resetGame();
+
+      // Prevent touchmove scrolling
+      document.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+      }, { passive: false });
     }
 
     function updateCanvasSize() {
