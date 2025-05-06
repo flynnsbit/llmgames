@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flying Toasters</title>
+</head>
+<body>
+  <script src="lib/p5.min.js"></script>
+  <script>
+// Global variables
+let toasterFrames = [];
+let pillarImg, bgImg, groundImg;
+let toaster, ground;
+let pillars = [];
+let score = 0;
+let frameCounter = 0;
+let gameOver = false;
+
+// Preload assets (replace with your actual asset paths)
+function preload() {
+  toasterFrames[0] = loadImage('assets/toaster_up.png');   // Wings up
+  toasterFrames[1] = loadImage('assets/toaster_mid.png');  // Wings middle
+  toasterFrames[2] = loadImage('assets/toaster_down.png'); // Wings down
+  pillarImg = loadImage('assets/pillar.png');              // Toaster slot obstacle
+  bgImg = loadImage('assets/starfield.png');               // 8-bit black-and-white starfield
+  groundImg = loadImage('assets/base.png');                // Ground texture
+}
+
+// Setup the canvas and initialize objects
+function setup() {
+  createCanvas(288, 512); // Matches Flappy Bird size
+  textAlign(CENTER);
+  textSize(24);
+  toaster = new Toaster();
+  ground = new Ground();
+  pillars.push(new Pillar());
+}
+
+// Main game loop
+function draw() {
+  // Draw the 8-bit starfield background
+  image(bgImg, 0, 0, width, height);
+
+  if (!gameOver) {
+    // Update and draw pillars
+    for (let i = pillars.length - 1; i >= 0; i--) {
+      pillars[i].update();
+      pillars[i].show();
+
+      // Score when toaster passes pillar
+      if (pillars[i].x + pillars[i].w < toaster.x && !pillars[i].passed) {
+        score++;
+        pillars[i].passed = true;
+      }
+
+      // Remove off-screen pillars
+      if (pillars[i].offscreen()) {
+        pillars.splice(i, 1);
+      }
+
+      // Collision detection with pillars
+      if (pillars[i].hits(toaster)) {
+        gameOver = true;
+      }
+    }
+
+    // Update and draw ground
+    ground.update();
+    ground.show();
+
+    // Update and draw toaster
+    toaster.update();
+    toaster.show();
+
+    // Collision with ground
+    if (toaster.y + toaster.height / 2 > ground.y) {
+      toaster.y = ground.y - toaster.height / 2; // Stop at ground
+      gameOver = true;
+    }
+
+    // Spawn new pillars every 100 frames
+    frameCounter++;
+    if (frameCounter % 100 === 0) {
+      pillars.push(new Pillar());
+    }
+  }
+
+  // Display score
+  fill(255);
+  text("Score: " + score, width / 2, 30);
+
+  // Game over message
+  if (gameOver) {
+    textSize(48);
+    text("Game Over", width / 2, height / 2);
+    textSize(24);
+    text("Click to Restart", width / 2, height / 2 + 40);
+  }
+}
+
+// Handle toaster flap and game restart
+function mousePressed() {
+  if (gameOver) {
+    // Restart game
+    toaster = new Toaster();
+    pillars = [new Pillar()];
+    score = 0;
+    frameCounter = 0;
+    gameOver = false;
+  } else {
+    toaster.flap();
+  }
+}
+
+// Toaster class
+class Toaster {
+  constructor() {
+    this.x = 50;              // Starting x position
+    this.y = height / 2;      // Middle of canvas
+    this.vy = 0;              // Vertical velocity
+    this.gravity = 0.5;       // Fall rate
+    this.lift = -5;          // Rise on flap
+    this.width = 34;          // Adjust based on your image
+    this.height = 24;         // Adjust based on your image
+    this.frame = 0;           // Animation frame
+    this.frameCount = 0;      // Frame counter
+  }
+
+  show() {
+    image(toasterFrames[this.frame], this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+  }
+
+  update() {
+    this.vy += this.gravity;
+    this.y += this.vy;
+    if (this.y < this.height / 2) {
+      this.y = this.height / 2; // Top boundary
+      this.vy = 0;
+    }
+    // Animate wings every 10 frames
+    this.frameCount++;
+    if (this.frameCount % 10 === 0) {
+      this.frame = (this.frame + 1) % 3;
+    }
+  }
+
+  flap() {
+    this.vy = this.lift;
+  }
+}
+
+// Pillar class (toaster slot obstacles)
+class Pillar {
+  constructor() {
+    this.x = width;                           // Start off-screen
+    this.w = 52;                              // Width (adjust to your image)
+    this.speed = 1;                           // Move left speed
+    this.gapHeight = 200;                     // Gap between pillars
+    this.topPipeHeight = random(50, height - this.gapHeight - 50); // Random top height
+    this.passed = false;                      // Track scoring
+  }
+
+  show() {
+    // Top pillar (flipped)
+    push();
+    translate(this.x, this.topPipeHeight);
+    scale(1, -1);
+    image(pillarImg, 0, 0, this.w, this.topPipeHeight);
+    pop();
+    // Bottom pillar
+    image(pillarImg, this.x, this.topPipeHeight + this.gapHeight, this.w, height - (this.topPipeHeight + this.gapHeight));
+  }
+
+  update() {
+    this.x -= this.speed;
+  }
+
+  offscreen() {
+    return this.x < -this.w;
+  }
+
+  hits(toaster) {
+    let toasterLeft = toaster.x - toaster.width / 2;
+    let toasterRight = toaster.x + toaster.width / 2;
+    let toasterTop = toaster.y - toaster.height / 2;
+    let toasterBottom = toaster.y + toaster.height / 2;
+
+    let pillarLeft = this.x;
+    let pillarRight = this.x + this.w;
+
+    // Collision with top pillar
+    if (toasterRight > pillarLeft && toasterLeft < pillarRight && toasterTop < this.topPipeHeight) {
+      return true;
+    }
+    // Collision with bottom pillar
+    if (toasterRight > pillarLeft && toasterLeft < pillarRight && toasterBottom > this.topPipeHeight + this.gapHeight) {
+      return true;
+    }
+    return false;
+  }
+}
+
+// Ground class
+class Ground {
+  constructor() {
+    this.x = 0;
+    this.y = height - 112; // Adjust to your ground height
+    this.speed = 2;
+  }
+
+  show() {
+    image(groundImg, this.x, this.y, groundImg.width, groundImg.height);
+    image(groundImg, this.x + groundImg.width, this.y, groundImg.width, groundImg.height);
+  }
+
+  update() {
+    this.x -= this.speed;
+    if (this.x <= -groundImg.width) {
+      this.x = 0; // Seamless loop
+    }
+  }
+}
+
+</script>
+</body>
+</html>
